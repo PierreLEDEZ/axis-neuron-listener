@@ -8,8 +8,16 @@ from .predicter import Predicter
 
 
 class Client(threading.Thread):
+    """
+        This class is the client of the Axis-Neuron software. It is in charge of receive and decode frames.
+        When the window is complete, it sends frames to predicter
+
+        Run in its own thread
+    """
 
     def __init__(self, host, port):
+        """ Initialize the Client object with its socket, predicting thread """
+        
         threading.Thread.__init__(self)
         self.host = host
         self.port = port
@@ -21,12 +29,31 @@ class Client(threading.Thread):
         self.killed = False
 
     def kill(self):
+        """ Break the listening loop of the client when called """
+        
         self.killed = True
 
     def ieee_754_conversion(self, hex_string):
+        """
+            Convert HEX string in IEEE754 format to float
+
+            :param hex_string: HEX string to convert
+            :type hex_string: string
+        """
+
         return struct.unpack("<f", binascii.unhexlify(hex_string.replace(" ", "")))[0]
     
     def update_frames(self, frame):
+        """
+            Update queue of frames
+            
+            When queue is full (size == self.max_frames), remove one and the new frame
+            If the prediction cooldown is at zero, create a predicting_thread
+            Else decrease cooldown
+
+            :param frame: new frame to add to the queue
+            :type frame: numpy array
+        """
         if self.frames.qsize() == self.max_frames:
             self.frames.get()
             self.frames.put(np.array(frame))
@@ -40,6 +67,12 @@ class Client(threading.Thread):
             self.frames.put(frame)
 
     def run(self):
+        """
+            Main function of this class
+
+            Connect previously created socket to Axis-Neuron server and listen to it
+        """
+
         print("[+] - Connecting to Axis Neuron")
         self.socket.connect((self.host, self.port))
         try:
