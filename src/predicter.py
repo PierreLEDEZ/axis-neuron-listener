@@ -1,5 +1,6 @@
 import numpy as np
 import threading
+import queue
 import time
 import cv2
 import tensorflow
@@ -7,6 +8,8 @@ from tensorflow.keras import models
 from .utils import utils
 from .bvh import bvh_parser
 import lib.bvh_transformation as bvh_transformation
+from .activity_analyzer.analyzer import ActivityAnalyzer
+
 activities_json = { 
     "activityA": [
         "picking_in_front", 
@@ -31,12 +34,14 @@ activities_json = {
     ]
 }
 
+classes = ["consult_sheets", "picking_in_front", "picking_left", "take_screwdriver"]
+
 class Predicter:
     """
         Class in charge of converting frames in image(s) and make predictions.
     """
 
-    def __init__(self):
+    def __init__(self, mode):
         """
             Initialize the predicter
 
@@ -46,13 +51,20 @@ class Predicter:
 
         self.frames = []
         self.predictions = []
-        self.model = models.load_model("./model/parallel_resnet50_mkI_xy_xz_yz_4classes_without_P01.h5")
+        # self.model = models.load_model("./model/parallel_resnet50_mkI_xy_xz_yz_4classes_without_P01.h5")
         # self.model = models.load_model("./model/parallel_resnet50_mkI_xy_xz_4classes.h5")
+        self.model = models.load_model("./model/MISO_resnet50_mkI_1_5_9_4classes_average_1dense6144_1denseclassification.h5")
         self.classes = utils.CLASSES
         self.bvhParser = bvh_parser.BVHParser()
         self.bvhParser.parse("./skeleton.bvh")
         self.joints = self.bvhParser.get_joints_list()
         self.ignored_joints_index = utils.ignoreJoints(self.bvhParser, "geo", utils.IGNORED_JOINTS)
+        self.killed = False
+        self.mode = mode
+        if self.mode != "web":
+            self.predicted_action = queue.Queue()
+            self.activity_analyzer = ActivityAnalyzer(activities_json, self.predicted_action, self.mode)
+            self.activity_analyzer.start()
     
     def update_frames(self, frames):
         """
@@ -63,6 +75,12 @@ class Predicter:
         """
 
         self.frames = np.array(frames, dtype=np.float32)
+
+    def kill(self):
+        """ Break the activity analyzer loop when called """
+        if self.mode != "web":
+            self.activity_analyzer.killed = True
+
 
     def run(self):
         """
@@ -99,14 +117,20 @@ class Predicter:
             B,G,R = cv2.split(final_images[i])
             final_images[i] = cv2.merge([R,G,B])
         predictions = self.model.predict([np.array([final_images[0]]), np.array([final_images[1]]), np.array([final_images[2]])])
-        results_0 = predictions[0][0]
-        results_1 = predictions[1][0]
-        results_2 = predictions[2][0]
-        final_preds = []
-        for pred_0, pred_1, pred_2 in zip(results_0, results_1, results_2):
-            final_pred = 1/3*sum([pred_0, pred_1, pred_2])
-            final_preds.append(final_pred)
-        print("=================================================================================================================\n{}\n{}\n{}\n---------------------------------------------------------------\n{}\n=================================================================================================================\n\n\n".format((results_0*100).tolist(), (results_1*100).tolist(), (results_2*100).tolist(), final_preds))
+        self.predictions = predictions[0]
+        if self.mode != "web":
+            if self.activity_analyzer.started:
+                predicted_class_index = np.argmax(predictions[0], axis=-1)
+                self.predicted_action.put(classes[predicted_class_index])
+        # return
+        # results_0 = predictions[0][0]
+        # results_1 = predictions[1][0]
+        # results_2 = predictions[2][0]
+        # final_preds = []
+        # for pred_0, pred_1, pred_2 in zip(results_0, results_1, results_2):
+        #     final_pred = 1/3*sum([pred_0, pred_1, pred_2])
+        #     final_preds.append(final_pred)
+        # print("=================================================================================================================\n{}\n{}\n{}\n---------------------------------------------------------------\n{}\n=================================================================================================================\n\n\n".format((results_0*100).tolist(), (results_1*100).tolist(), (results_2*100).tolist(), final_preds))
         # print(final_preds)
         
         # ===========================================================
@@ -120,6 +144,3 @@ class Predicter:
         #     final_pred = 1/4*sum([pred_0, pred_1])
         #     final_preds.append(final_pred)
         # print(final_preds)
-
-
-        self.predictions = np.array(final_preds)
