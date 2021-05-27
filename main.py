@@ -1,4 +1,4 @@
-import math, logging
+import math, logging, argparse
 from flask import Flask, jsonify, make_response
 
 from src.client import Client
@@ -27,9 +27,33 @@ def root():
 
 
 if __name__ == "__main__":
-    bvhListener = Client(HOST, PORT)
-    bvhListener.start()
 
-    app.run()
-    bvhListener.kill()
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--mode",
+        help="Choose the mode (training or recognition or web)",
+        action="store",
+        required=True,
+        default="web"
+    )
+    
+    args = parser.parse_args()
+
+    if args.mode != "training" and args.mode != "recognition" and args.mode != "web":
+        parser.print_help()
+        sys.exit(-1)
+
+    bvhListener = Client(HOST, PORT, args.mode)
+
+    # With "web" mode, launch listener in its own thread and launch Flask application in the main thread
+    if args.mode == "web":
+        bvhListener.start()
+        app.run()
+        bvhListener.kill()
+        exit()
+
+    else:
+        bvhListener.run()
+        bvhListener.kill()
     
