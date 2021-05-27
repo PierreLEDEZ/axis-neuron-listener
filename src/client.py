@@ -15,14 +15,15 @@ class Client(threading.Thread):
         Run in its own thread
     """
 
-    def __init__(self, host, port):
+    def __init__(self, host, port, mode):
         """ Initialize the Client object with its socket, predicting thread """
         
         threading.Thread.__init__(self)
         self.host = host
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.predicting_thread = Predicter()
+        self.mode = mode
+        self.predicting_thread = Predicter(self.mode)
         self.frames = queue.Queue()
         self.cooldown = 0 
         self.max_frames = 350
@@ -32,6 +33,7 @@ class Client(threading.Thread):
         """ Break the listening loop of the client when called """
         
         self.killed = True
+        self.predicting_thread.kill()
 
     def ieee_754_conversion(self, hex_string):
         """
@@ -47,7 +49,7 @@ class Client(threading.Thread):
         """
             Update queue of frames
             
-            When queue is full (size == self.max_frames), remove one and the new frame
+            When queue is full (size == self.max_frames), remove one and add the new frame
             If the prediction cooldown is at zero, create a predicting_thread
             Else decrease cooldown
 
