@@ -7,6 +7,29 @@ from tensorflow.keras import models
 from .utils import utils
 from .bvh import bvh_parser
 import lib.bvh_transformation as bvh_transformation
+activities_json = { 
+    "activityA": [
+        "picking_in_front", 
+        "picking_left", 
+        "turn_sheets",
+        "take_screwdriver",
+        "picking_left"
+    ],
+    "activityB": [
+        "picking_left",
+        "picking_in_front",
+        "take_screwdriver",
+        "assemble_system",
+        "turn_sheets"
+    ],
+    "activityC": [
+        "picking_in_front",
+        "picking_left",
+        "turn_sheets",
+        "consult_sheets",
+        "picking_left"
+    ]
+}
 
 class Predicter:
     """
