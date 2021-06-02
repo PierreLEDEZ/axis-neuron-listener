@@ -64,6 +64,24 @@ cdef np.ndarray space_3D_v2 = np.array(
     dtype=UINT
 )
 
+cdef np.ndarray space_2D_v3 = np.array(
+    [
+        [0, 2],
+        [1, 3],
+        [3, 4]
+    ],
+    dtype=UINT
+)
+
+cdef np.ndarray space_3D_v3 = np.array(
+    [
+        [1, 3, 4],
+        [0, 2, 4],
+        [0, 1, 2]
+    ],
+    dtype=UINT
+)
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef inline np.ndarray[FLOAT_t, ndim=2] getRotationMatX(float angle):
@@ -772,8 +790,8 @@ cpdef list bvh2MultipleImages(np.ndarray[FLOAT_t, ndim=2] frames, list joints, l
         for n in range(N):
             coords_5D = np.concatenate((world_coordinates[f][n], np.array([f, n])))
             for c in range(3):
-                current_2D = space_2D_v2[c]
-                current_3D = space_3D_v2[c]
+                current_2D = space_2D_v3[c]
+                current_3D = space_3D_v3[c]
                 j = coords_5D[current_2D[0]]
                 k = coords_5D[current_2D[1]]
                 r = coords_5D[current_3D[0]]
