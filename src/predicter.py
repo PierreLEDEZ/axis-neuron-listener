@@ -51,8 +51,6 @@ class Predicter:
 
         self.frames = []
         self.predictions = []
-        # self.model = models.load_model("./model/parallel_resnet50_mkI_xy_xz_yz_4classes_without_P01.h5")
-        # self.model = models.load_model("./model/parallel_resnet50_mkI_xy_xz_4classes.h5")
         self.model = models.load_model("./model/MISO_resnet50_mkI_1_5_9_4classes_average_1dense6144_1denseclassification.h5")
         self.classes = utils.CLASSES
         self.bvhParser = bvh_parser.BVHParser()
