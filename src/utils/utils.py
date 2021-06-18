@@ -42,21 +42,7 @@ IGNORED_JOINTS = [
     "LeftHandPinky3"
 ]
 
-CLASSES = [
-    "assemble_system",
-    "consult_sheets",
-    "picking_in_front",
-    "picking_left",
-    "put_down_component",
-    "put_down_measuring_rod",
-    "put_down_screwdriver",
-    "put_down_subsystem",
-    "take_component",
-    "take_measuring_rod",
-    "take_screwdriver",
-    "take_subsystem",
-    "turn_sheets"
-]
+CLASSES = ["consult_sheets", "picking_in_front", "picking_left", "take_screwdriver"]
 
 def ignoreJoints(bvhParser, coordinate="rgb", ignored_joints=[]):
     """ 
