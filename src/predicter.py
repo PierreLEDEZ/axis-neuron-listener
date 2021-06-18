@@ -34,8 +34,6 @@ activities_json = {
     ]
 }
 
-classes = ["consult_sheets", "picking_in_front", "picking_left", "take_screwdriver"]
-
 class Predicter:
     """
         Class in charge of converting frames in image(s) and make predictions.
@@ -51,7 +49,8 @@ class Predicter:
 
         self.frames = []
         self.predictions = []
-        self.model = models.load_model("./model/MISO_resnet50_mkI_1_5_9_4classes_average_1dense6144_1denseclassification.h5")
+        # self.model = models.load_model("./model/MISO_alexnet_1_2_5_8_9_energy1_4classes_average_1dense4096_1denseclassification.h5")
+        self.model = models.load_model("./model/MISO_alexnet_1_2_5_7_9_energy_08_4classes_inhard.h5")
         self.classes = utils.CLASSES
         self.bvhParser = bvh_parser.BVHParser()
         self.bvhParser.parse("./skeleton.bvh")
@@ -59,6 +58,7 @@ class Predicter:
         self.ignored_joints_index = utils.ignoreJoints(self.bvhParser, "geo", utils.IGNORED_JOINTS)
         self.killed = False
         self.mode = mode
+        self.threshold = 0.9
         if self.mode != "web":
             self.predicted_action = queue.Queue()
             self.activity_analyzer = ActivityAnalyzer(activities_json, self.predicted_action, self.mode)
@@ -79,6 +79,25 @@ class Predicter:
         if self.mode != "web":
             self.activity_analyzer.killed = True
 
+    def make_first_prediction(self):
+        """
+        """
+
+        images_to_use = [1, 2, 5, 7, 9]
+        images = []
+        
+        for i in images_to_use:
+            img = cv2.imread("./img/first_prediction/{}.png".format(i))
+            images.append(img)
+
+        predictions = self.model([
+            np.array([images[0]]),
+            np.array([images[1]]),
+            np.array([images[2]]),
+            np.array([images[3]]),
+            np.array([images[4]])
+        ])
+
 
     def run(self):
         """
@@ -96,49 +115,25 @@ class Predicter:
             Convert received frames in images with the specified method and make predictions
         """
 
-        # final_img = bvh_transformation.bvh2GeometricFeaturesV2(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index)
-        # final_img = tensorflow.keras.applications.resnet.preprocess_input(final_img)
+        # final_images = bvh_transformation.bvh2MultipleImages(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index, float(1.0), [1, 2, 5, 8, 9])
+        final_images = bvh_transformation.convert_frames_to_imgs(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index, [1, 2, 5, 7, 9])
         
-        # ==========================================================
-        
-        # joints_we_want = np.array([0, 13, 16, 17, 20], dtype=np.uint8)
-        # final_img = bvh_transformation.bvh2GeometricFeaturesCustom(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index, joints_we_want)
-        # final_img = np.array([final_img], dtype=np.float32)
-        # final_img = tensorflow.keras.applications.resnet.preprocess_input(final_img)
-        
-        # predictions = self.model.predict()
-
-        # ==========================================================
-        
-        final_images = bvh_transformation.bvh2MultipleImages(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index)
-        for i in range(len(final_images)):
-            B,G,R = cv2.split(final_images[i])
-            final_images[i] = cv2.merge([R,G,B])
-        predictions = self.model.predict([np.array([final_images[0]]), np.array([final_images[1]]), np.array([final_images[2]])])
-        self.predictions = predictions[0]
-        if self.mode != "web":
-            if self.activity_analyzer.started:
-                predicted_class_index = np.argmax(predictions[0], axis=-1)
-                self.predicted_action.put(classes[predicted_class_index])
-        # return
-        # results_0 = predictions[0][0]
-        # results_1 = predictions[1][0]
-        # results_2 = predictions[2][0]
-        # final_preds = []
-        # for pred_0, pred_1, pred_2 in zip(results_0, results_1, results_2):
-        #     final_pred = 1/3*sum([pred_0, pred_1, pred_2])
-        #     final_preds.append(final_pred)
-        # print("=================================================================================================================\n{}\n{}\n{}\n---------------------------------------------------------------\n{}\n=================================================================================================================\n\n\n".format((results_0*100).tolist(), (results_1*100).tolist(), (results_2*100).tolist(), final_preds))
-        # print(final_preds)
-        
-        # ===========================================================
-        
-        # final_images = bvh_transformation.bvh2MultipleImages(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index)
-        # predictions = self.model.predict([np.array([final_images[0]]), np.array([final_images[1]])])
-        # results_0 = predictions[0][0]
-        # results_1 = predictions[1][0]
-        # final_preds = []
-        # for pred_0, pred_1 in zip(results_0, results_1):
-        #     final_pred = 1/4*sum([pred_0, pred_1])
-        #     final_preds.append(final_pred)
-        # print(final_preds)
+        if final_images != []:
+            for i in range(len(final_images)):
+                B,G,R = cv2.split(final_images[i])
+                final_images[i] = cv2.merge([R,G,B])
+            predictions = self.model([
+                np.array([final_images[0]]), 
+                np.array([final_images[1]]), 
+                np.array([final_images[2]]), 
+                np.array([final_images[3]]), 
+                np.array([final_images[4]])
+            ])
+            if (np.max(predictions[0], axis=-1) < self.threshold):
+                self.predictions = []
+                return
+            self.predictions = predictions[0]
+            if self.mode != "web":
+                if self.activity_analyzer.started:
+                    predicted_class_index = np.argmax(predictions[0], axis=-1)
+                    self.predicted_action.put(utils.CLASSES[predicted_class_index])
