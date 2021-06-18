@@ -4,6 +4,7 @@
 import numpy as np, cv2, time
 cimport numpy as np
 cimport cython
+import math
 from cython.parallel import prange
 
 UINT=np.uint8
@@ -753,7 +754,7 @@ cpdef np.ndarray[UINT_t, ndim=3] bvh2GeometricFeaturesCustom(np.ndarray[FLOAT_t,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef list bvh2MultipleImages(np.ndarray[FLOAT_t, ndim=2] frames, list joints, list ignored_joints, list ignored_joints_index):
+cpdef list bvh2MultipleImages(np.ndarray[FLOAT_t, ndim=2] frames, list joints, list ignored_joints, list ignored_joints_index,  float energy_factor, list images_we_want):
 
     cdef np.ndarray[FLOAT_t, ndim=3] world_coordinates = getWorldCoordinates(frames, joints, ignored_joints, ignored_joints_index)
     
@@ -778,7 +779,7 @@ cpdef list bvh2MultipleImages(np.ndarray[FLOAT_t, ndim=2] frames, list joints, l
     energies = (energies - np.amin(energies))/(np.amax(energies) - np.amin(energies))
     
     cdef:
-        float rho = .8
+        float rho = energy_factor
 
         np.ndarray weights = rho*energies + (1 - rho)
 
@@ -789,9 +790,11 @@ cpdef list bvh2MultipleImages(np.ndarray[FLOAT_t, ndim=2] frames, list joints, l
     for f in range(F):
         for n in range(N):
             coords_5D = np.concatenate((world_coordinates[f][n], np.array([f, n])))
-            for c in range(3):
-                current_2D = space_2D_v3[c]
-                current_3D = space_3D_v3[c]
+            for c in range(10):
+                if c not in images_we_want:
+                    continue
+                current_2D = space_2D[c]
+                current_3D = space_3D[c]
                 j = coords_5D[current_2D[0]]
                 k = coords_5D[current_2D[1]]
                 r = coords_5D[current_3D[0]]
@@ -809,7 +812,9 @@ cpdef list bvh2MultipleImages(np.ndarray[FLOAT_t, ndim=2] frames, list joints, l
         np.ndarray X, Y, RGB
         list final_images = []
 
-    for img_index in range(3):
+    for img_index in range(10):
+        if img_index not in images_we_want:
+            continue
         X = np.array(images[img_index][1], dtype=FLOAT)
         Y = np.array(images[img_index][0], dtype=FLOAT)
         RGB = np.array(images[img_index][2])
@@ -852,4 +857,116 @@ cpdef list bvh2MultipleImages(np.ndarray[FLOAT_t, ndim=2] frames, list joints, l
 
         img = cv2.resize(img, (224, 224), interpolation=cv2.INTER_AREA)
         final_images.append(img)
+    return final_images
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef list calc_energy(np.ndarray[FLOAT_t, ndim=3] coords, float rho, int step):
+    cdef:
+        list energies = [0 for i in range(len(coords[0]))]
+        int F = len(coords)-1
+        np.ndarray energies_array, weights
+        int f, n
+    for f in range(0, F-step, step):
+        current_frame = coords[f]
+        next_frame = coords[f+1]
+        for n in range(len(coords[0])):
+            energy = np.linalg.norm(next_frame[n] - current_frame[n])
+            energies[n] += energy
+
+    energies_array = np.array(energies, dtype=FLOAT)
+    total_energy = np.sum(energies_array)
+    energies_array = (energies_array - np.amin(energies_array))/(np.amax(energies_array) - np.amin(energies_array))
+
+    weights = rho * energies_array + (1 - rho)
+    return [weights, total_energy]
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef list compute_5D_coords(np.ndarray[FLOAT_t, ndim=3] coords, np.ndarray[FLOAT_t, ndim=1] weights, list images_we_want):
+    cdef:
+        list images = [[[], [] ,[]] for i in range(10)]
+        int f, n
+    for f in range(len(coords)):
+        for n in range(len(coords[0])):
+            coords_5D = np.concatenate((coords[f][n], np.array([f, n])))
+            for c in range(10):
+                if c not in images_we_want:
+                    continue
+                current_2D = space_2D[c]
+                current_3D = space_3D[c]
+                j = coords_5D[current_2D[0]]
+                k = coords_5D[current_2D[1]]
+                r = coords_5D[current_3D[0]]
+                g = coords_5D[current_3D[1]]
+                b = coords_5D[current_3D[2]]
+                rgb = np.array([r, g, b])
+                rgb = (1 - weights[n])*np.array([255, 255, 255]) + weights[n]*rgb
+                images[c][0].append(j)
+                images[c][1].append(k)
+                images[c][2].append(rgb)
+    return images
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cpdef list convert_frames_to_imgs(np.ndarray[FLOAT_t, ndim=2] frames, list joints, list ignored_joints, list ignored_joints_index, list images_we_want):
+
+    cdef np.ndarray[FLOAT_t, ndim=3] world_coordinates = getWorldCoordinates(frames, joints, ignored_joints, ignored_joints_index)
+
+    cdef:
+        list final_images = []
+        list energy_function = calc_energy(world_coordinates, .8, 1) 
+        np.ndarray[FLOAT_t, ndim=1] weights = energy_function[0]
+        total_energy = energy_function[1]
+    
+    if total_energy < 220:
+        return []
+
+    cdef:
+        list images = compute_5D_coords(world_coordinates, weights, images_we_want)
+        int img_index
+        float beta = .8
+
+    for img_index in range(10):
+        if img_index not in images_we_want:
+            continue
+        X = np.array(images[img_index][1], dtype=np.float32)
+        Y = np.array(images[img_index][0], dtype=np.float32)
+        RGB = np.array(images[img_index][2])
+        RGB = np.floor(255 * (RGB - np.amin(RGB))/(np.amax(RGB) - np.amin(RGB)))
+
+        x_min, x_max = np.amin(X), np.amax(X)
+        y_min, y_max = np.amin(Y), np.amax(Y)
+
+        temp_w = x_max - x_min
+        temp_h = y_max - y_min
+
+        if temp_w > temp_h:
+            mult = math.ceil(temp_w / temp_h)
+            Y = Y * mult
+        else:
+            mult = math.ceil(temp_h / temp_w)
+            X = X * mult
+        
+        X = np.array(np.floor(X*10), dtype=np.int32)
+        Y = np.array(np.floor(Y*10), dtype=np.int32)
+        x_min, x_max = np.amin(X)-10, np.amax(X)+10
+        y_min, y_max = np.amin(Y)-10, np.amax(Y)+10
+        width, height = x_max - x_min, y_max - y_min
+
+        img = np.zeros((height, width, 3), dtype=np.uint8)
+        img.fill(255)
+        for x, y, rgb in zip(X, Y, RGB):
+            if x_max <= width:
+                x += np.abs(x_min)
+            if x_max >= width:
+                x -= np.abs(x_min)
+            if y_max >= height:
+                y -= np.abs(y_min)
+            if y_max <= height:
+                y += np.abs(y_min)
+            cv2.circle(img, (x, height-y), int((1-beta)*10+beta*(width/100)), [int(rgb[2]), int(rgb[1]), int(rgb[0])], -1)
+        img = cv2.resize(img, (224, 224), interpolation=cv2.INTER_AREA)
+        final_images.append(img)
+    
     return final_images
