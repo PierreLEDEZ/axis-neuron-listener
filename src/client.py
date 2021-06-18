@@ -24,9 +24,10 @@ class Client(threading.Thread):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.mode = mode
         self.predicting_thread = Predicter(self.mode)
+        self.predicting_thread.make_first_prediction()
         self.frames = queue.Queue()
         self.cooldown = 0 
-        self.max_frames = 350
+        self.max_frames = 150
         self.killed = False
 
     def kill(self):
@@ -62,7 +63,7 @@ class Client(threading.Thread):
             if self.cooldown == 0:
                 self.predicting_thread.update_frames(list(self.frames.queue))
                 self.predicting_thread.run()
-                self.cooldown = 150
+                self.cooldown = 75
             else:
                 self.cooldown -= 1
         else:
