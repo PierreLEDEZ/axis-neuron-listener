@@ -2,6 +2,7 @@ import math, logging, argparse
 from flask import Flask, jsonify, make_response
 
 from src.client import Client
+from src.utils import utils
 
 HOST = "127.0.0.1"
 PORT = 7001
@@ -19,7 +20,7 @@ def root():
     else:
         raw_pred = [0 for i in range(len(bvhListener.predicting_thread.classes))]
 
-    response = make_response(jsonify({"predictions": raw_pred}), 200)
+    response = make_response(jsonify({"predictions": raw_pred, "classes": utils.CLASSES}), 200)
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.content_type = "application/json"
 
