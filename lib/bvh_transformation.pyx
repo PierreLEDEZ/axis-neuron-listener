@@ -919,8 +919,8 @@ cpdef list convert_frames_to_imgs(np.ndarray[FLOAT_t, ndim=2] frames, list joint
         np.ndarray[FLOAT_t, ndim=1] weights = energy_function[0]
         total_energy = energy_function[1]
     
-    if total_energy < 220:
-        return []
+    # if total_energy < 220:
+    #     return []
 
     cdef:
         list images = compute_5D_coords(world_coordinates, weights, images_we_want)

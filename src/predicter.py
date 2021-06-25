@@ -49,8 +49,8 @@ class Predicter:
 
         self.frames = []
         self.predictions = []
-        # self.model = models.load_model("./model/MISO_alexnet_1_2_5_8_9_energy1_4classes_average_1dense4096_1denseclassification.h5")
-        self.model = models.load_model("./model/MISO_alexnet_1_2_5_7_9_energy_08_4classes_inhard.h5")
+        self.model = models.load_model("./model/MISO_alexnet_1_2_5_8_9_energy1_4classes_average_1dense4096_1denseclassification.h5")
+        # self.model = models.load_model("./model/MISO_alexnet_1_2_5_7_9_energy_08_4classes_inhard.h5")
         self.classes = utils.CLASSES
         self.bvhParser = bvh_parser.BVHParser()
         self.bvhParser.parse("./skeleton.bvh")
@@ -58,7 +58,7 @@ class Predicter:
         self.ignored_joints_index = utils.ignoreJoints(self.bvhParser, "geo", utils.IGNORED_JOINTS)
         self.killed = False
         self.mode = mode
-        self.threshold = 0.9
+        self.threshold = 0.5
         if self.mode != "web":
             self.predicted_action = queue.Queue()
             self.activity_analyzer = ActivityAnalyzer(activities_json, self.predicted_action, self.mode)
@@ -116,7 +116,7 @@ class Predicter:
         """
 
         # final_images = bvh_transformation.bvh2MultipleImages(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index, float(1.0), [1, 2, 5, 8, 9])
-        final_images = bvh_transformation.convert_frames_to_imgs(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index, [1, 2, 5, 7, 9])
+        final_images = bvh_transformation.convert_frames_to_imgs(self.frames, self.joints, utils.IGNORED_JOINTS, self.ignored_joints_index, [1, 2, 5, 8, 9])
         
         if final_images != []:
             for i in range(len(final_images)):

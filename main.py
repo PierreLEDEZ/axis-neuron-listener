@@ -49,6 +49,7 @@ if __name__ == "__main__":
 
     # With "web" mode, launch listener in its own thread and launch Flask application in the main thread
     if args.mode == "web":
+        input("")
         bvhListener.start()
         app.run()
         bvhListener.kill()

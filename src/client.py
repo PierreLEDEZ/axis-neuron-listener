@@ -27,7 +27,7 @@ class Client(threading.Thread):
         self.predicting_thread.make_first_prediction()
         self.frames = queue.Queue()
         self.cooldown = 0 
-        self.max_frames = 150
+        self.max_frames = 175
         self.killed = False
 
     def kill(self):
@@ -63,7 +63,7 @@ class Client(threading.Thread):
             if self.cooldown == 0:
                 self.predicting_thread.update_frames(list(self.frames.queue))
                 self.predicting_thread.run()
-                self.cooldown = 75
+                self.cooldown = 87
             else:
                 self.cooldown -= 1
         else:
